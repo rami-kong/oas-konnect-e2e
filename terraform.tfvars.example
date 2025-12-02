@@ -1,0 +1,146 @@
+# Kong Konnect Configuration
+konnect_token      = "kpat_YOUR_TOKEN_HERE"
+konnect_server_url = "https://us.api.konghq.com"
+konnect_region     = "us"
+environment        = "production"
+aws_deployment     = true
+
+# Control Plane Configuration
+control_plane_name        = "Terraform Demo Control Plane"
+control_plane_description = "Control plane for API catalog demo managed by Terraform"
+
+# Portal Configuration
+portal_name                = "API Developer Portal"
+portal_force_destroy       = "true"
+default_api_visibility     = "public"
+auto_approve_developers    = true
+auto_approve_applications  = true
+portal_auth_enabled        = true
+portal_rbac_enabled        = false
+# portal_custom_domain     = "developers.example.com"
+
+# API Catalog Configuration
+api_visibility                 = "public"
+auto_approve_api_registrations = true
+enable_app_registration        = true
+enable_second_api              = false
+
+# Team Management (optional)
+enable_team_memberships = false
+# platform_lead_user_id = "user-id-123"
+# api_developer_user_id = "user-id-456"
+
+# Consumer Credentials (optional - will auto-generate if not set)
+# api_key_credential   = "your-secure-api-key"
+# basic_auth_username  = "basic-user"
+# basic_auth_password  = "secure-password"
+# jwt_secret           = "your-jwt-secret"
+# hmac_secret          = "your-hmac-secret"
+# oauth2_client_id     = "oauth2-client-id"
+# oauth2_client_secret = "oauth2-client-secret"
+# oauth2_redirect_uris = ["https://example.com/callback"]
+
+# Plugin Configuration
+enable_key_auth              = false
+enable_basic_auth            = false
+enable_jwt_auth              = false
+enable_oauth2                = false
+enable_acl                   = false
+enable_request_transformer   = true
+enable_response_transformer  = true
+enable_ip_restriction        = false
+enable_proxy_cache           = true
+enable_bot_detection         = false
+enable_request_size_limiting = true
+enable_http_log              = false
+enable_correlation_id        = true
+enable_datadog               = false
+maintenance_mode             = false
+
+# IP Restriction (if enabled)
+# allowed_ips = ["10.0.0.0/8", "172.16.0.0/12", "192.168.1.100/32"]
+
+# Logging Configuration (if enabled)
+# http_log_endpoint = "https://logs.example.com/kong"
+
+# Monitoring Configuration (if enabled)
+# datadog_host = "localhost"
+
+# Vault Configuration (AWS Secrets Manager enabled by default)
+enable_aws_vault       = true
+enable_env_vault       = false
+enable_gcp_vault       = false
+enable_hashicorp_vault = false
+enable_azure_vault     = false
+
+# AWS Configuration
+aws_region           = "us-east-1"
+aws_secondary_region = "us-west-2"
+
+# GCP Vault (if enabled)
+# gcp_project_id = "my-gcp-project"
+
+# HashiCorp Vault (if enabled)
+# vault_host      = "vault.example.com"
+# vault_port      = 8200
+# vault_token     = "hvs.YOUR_VAULT_TOKEN"
+# vault_namespace = ""
+
+# Azure Vault (if enabled)
+# azure_vault_uri    = "https://myvault.vault.azure.net"
+# azure_client_id    = "your-client-id"
+# azure_client_secret = "your-client-secret"
+# azure_tenant_id    = "your-tenant-id"
+
+# Certificate Configuration
+enable_mtls          = false
+enable_custom_domain = false
+enable_key_management = false
+enable_custom_plugin = false
+
+# Custom Domain (if enabled)
+# custom_domain = "api.example.com"
+# server_certificate = file("certs/server.crt")
+# server_private_key = file("certs/server.key")
+
+# mTLS (if enabled)
+# ca_certificate        = file("certs/ca.crt")
+# client_ca_certificate = file("certs/client-ca.crt")
+
+# Data Plane Configuration
+enable_dp_client_cert = false
+enable_system_account = false
+enable_cloud_gateway  = false
+
+# System Account (if enabled)
+# system_account_token_expiry = "2026-12-31T23:59:59Z"
+
+# Cloud Gateway Configuration (AWS)
+control_plane_geo              = "us"
+cloud_gateway_provider         = "aws"
+cloud_gateway_region           = "us-east-1"
+cloud_gateway_availability_zones = ["us-east-1a", "us-east-1b", "us-east-1c"]
+cloud_gateway_autoscale_kind   = "autopilot"
+cloud_gateway_base_rps         = 100
+cloud_gateway_max_rps          = 10000
+# dataplane_group_id          = ""
+# egress_ip_addresses         = []
+# firewall_allowed_ips        = []
+
+# Cloud Gateway Custom Domain (if enabled)
+# enable_cloud_gateway_custom_domain = false
+# cloud_gateway_custom_domain = "api.example.com"
+
+# Transit Gateway (if enabled)
+# enable_transit_gateway  = false
+# aws_ram_share_arn       = "arn:aws:ram:region:account:resource-share/id"
+# aws_transit_gateway_id  = "tgw-xxxxx"
+# transit_gateway_cidrs   = ["10.0.0.0/8"]
+
+# AWS Provider Account (for VPC connectivity)
+enable_provider_account = false
+cloud_provider_kind     = "aws"
+# aws_account_id        = "123456789012"
+# aws_arn               = "arn:aws:iam::123456789012:role/KongKonnectRole"
+# aws_external_id       = "external-id"
+# konnect_account_id    = "your-konnect-account-id"

@@ -1,0 +1,43 @@
+openapi: 3.0.0
+info:
+  title: Analytics API
+  version: 3.0.0
+  description: Real-time analytics and reporting API
+servers:
+  - url: https://api.analytics.example.com/v3
+paths:
+  /metrics:
+    get:
+      summary: Get metrics
+      tags:
+        - Analytics
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Analytics metrics
+  /reports:
+    get:
+      summary: List reports
+      tags:
+        - Reports
+      responses:
+        '200':
+          description: List of reports
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+security:
+  - ApiKeyAuth: []

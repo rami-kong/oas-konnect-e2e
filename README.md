@@ -24,7 +24,7 @@ Set these before running Terraform:
 
 ```bash
 export TF_VAR_control_plane_id="52ea7xxxxxx"
-export TF_VAR_konnect_pat="kpat_xxxxxx"
+export KONNECT_TOKEN="kpat_xxxxxx"
 export TF_VAR_konnect_server_url="https://us.api.konghq.com"
 export TF_VAR_portal_id="1edcxxxxxxx"
 ```

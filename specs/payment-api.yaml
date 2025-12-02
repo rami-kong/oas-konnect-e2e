@@ -1,0 +1,121 @@
+openapi: 3.0.0
+info:
+  title: Payment API
+  version: 2.0.0
+  description: Secure payment processing API with PCI compliance
+  contact:
+    name: API Support
+    email: payments@example.com
+servers:
+  - url: https://api.payments.example.com/v2
+    description: Production server
+  - url: https://sandbox.payments.example.com/v2
+    description: Sandbox server
+paths:
+  /payments:
+    post:
+      summary: Create a payment
+      operationId: createPayment
+      tags:
+        - Payments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+                - currency
+                - payment_method
+              properties:
+                amount:
+                  type: number
+                  description: Payment amount
+                  example: 99.99
+                currency:
+                  type: string
+                  description: ISO 4217 currency code
+                  example: USD
+                payment_method:
+                  type: string
+                  description: Payment method type
+                  enum: [card, bank_transfer, wallet]
+                description:
+                  type: string
+                  description: Payment description
+                  example: Order #12345
+      responses:
+        '200':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    example: pay_123456
+                  status:
+                    type: string
+                    example: completed
+                  amount:
+                    type: number
+                    example: 99.99
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+    get:
+      summary: List payments
+      operationId: listPayments
+      tags:
+        - Payments
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+  /payments/{id}:
+    get:
+      summary: Get payment details
+      operationId: getPayment
+      tags:
+        - Payments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment details
+        '404':
+          description: Payment not found
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+security:
+  - ApiKeyAuth: []

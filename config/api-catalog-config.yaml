@@ -1,0 +1,38 @@
+# API Catalog Configuration
+# Define your APIs here and the automation script will create them in Konnect
+
+apis:
+  - name: "Echo Service"
+    version: "1.0.0"
+    description: "A simple HTTP Request & Response Service for testing and development"
+    spec_file: "echo-service.json"
+    gateway_service: "shared-services.kong-sales-engineering.com"
+    publish_to_portal: true
+    
+  - name: "Payment API"
+    version: "2.0.0"
+    description: "Secure payment processing API with PCI compliance"
+    spec_file: "payment-api.yaml"
+    gateway_service: "api.payments.example.com"
+    publish_to_portal: true
+    
+  - name: "User Management API"
+    version: "1.2.0"
+    description: "User authentication, authorization, and profile management"
+    spec_file: "user-management.yaml"
+    gateway_service: "api.users.example.com"
+    publish_to_portal: true
+    
+  - name: "Analytics API"
+    version: "3.0.0"
+    description: "Real-time analytics and reporting API"
+    spec_file: "analytics-api.yaml"
+    gateway_service: "api.analytics.example.com"
+    publish_to_portal: false
+
+# Optional: Global settings
+settings:
+  auto_approve_portal_requests: false
+  default_rate_limit: 100
+  enable_api_key_auth: true
+  enable_analytics: true

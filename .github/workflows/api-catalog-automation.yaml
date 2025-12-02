@@ -1,0 +1,172 @@
+name: Kong API Catalog Automation
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config/api-catalog-config.yaml'
+      - 'specs/**'
+      - '.github/workflows/api-catalog-automation.yaml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'config/api-catalog-config.yaml'
+      - 'specs/**'
+  workflow_dispatch:
+
+env:
+  TF_VERSION: '1.6.0'
+
+jobs:
+  validate-specs:
+    name: Validate OpenAPI Specifications
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install Spectral (OpenAPI Linter)
+        run: npm install -g @stoplight/spectral-cli
+      
+      - name: Validate OpenAPI specs
+        run: |
+          for spec in specs/*.{json,yaml,yml}; do
+            if [ -f "$spec" ]; then
+              echo "Validating $spec..."
+              spectral lint "$spec" || echo "Warning: $spec has validation issues"
+            fi
+          done
+
+  generate-terraform:
+    name: Generate Terraform Configuration
+    runs-on: ubuntu-latest
+    needs: validate-specs
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+      
+      - name: Make script executable
+        run: chmod +x scripts/automate-api-catalog.sh
+      
+      - name: Generate Terraform configuration
+        run: ./scripts/automate-api-catalog.sh config/api-catalog-config.yaml
+        env:
+          TERRAFORM_SKIP_PLAN: "true"
+      
+      - name: Upload generated Terraform
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-config
+          path: api-catalog-generated.tf
+
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: generate-terraform
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download generated Terraform
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-config
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_konnect_token: ${{ secrets.KONNECT_TOKEN }}
+      
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        env:
+          TF_VAR_konnect_token: ${{ secrets.KONNECT_TOKEN }}
+      
+      - name: Comment PR with Plan
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `#### Terraform Plan 📖
+            
+            <details><summary>Show Plan</summary>
+            
+            \`\`\`
+            ${process.env.PLAN}
+            \`\`\`
+            
+            </details>
+            
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: generate-terraform
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download generated Terraform
+        uses: actions/download-artifact@v4
+        with:
+          name: terraform-config
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      
+      - name: Terraform Init
+        run: terraform init
+        env:
+          TF_VAR_konnect_token: ${{ secrets.KONNECT_TOKEN }}
+      
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
+        env:
+          TF_VAR_konnect_token: ${{ secrets.KONNECT_TOKEN }}
+      
+      - name: Create deployment summary
+        run: |
+          echo "## API Catalog Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Terraform apply completed successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Resources Created/Updated" >> $GITHUB_STEP_SUMMARY
+          terraform output -json >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify on Completion
+    runs-on: ubuntu-latest
+    needs: terraform-apply
+    if: always()
+    steps:
+      - name: Send notification
+        run: |
+          echo "API Catalog automation completed"
+          echo "Status: ${{ needs.terraform-apply.result }}"

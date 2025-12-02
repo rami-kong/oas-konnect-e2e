@@ -1,21 +1,15 @@
 terraform {
   required_providers {
     konnect = {
-      source = "kong/konnect"
-      version = "~> 2.8.1"
-    }
-    konnect-beta = {
-      source = "kong/konnect-beta"
+      source  = "kong/konnect"
+      version = "3.1.0"
     }
   }
 }
 
-provider "konnect" {
-  personal_access_token = var.konnect_pat
-  server_url           = var.konnect_server_url
-}
 
-provider "konnect-beta" {
-  personal_access_token = var.konnect_pat
+provider "konnect" {
+  personal_access_token = var.konnect_token
   server_url            = var.konnect_server_url
 }
+

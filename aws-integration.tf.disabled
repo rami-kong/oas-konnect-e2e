@@ -1,0 +1,420 @@
+# AWS-Specific Configuration and Integrations
+
+# ============================================================================
+# AWS TAGS (for resource tagging across AWS services)
+# ============================================================================
+
+locals {
+  aws_tags = {
+    ManagedBy   = "terraform"
+    Environment = var.environment
+    Project     = "kong-konnect"
+    Region      = var.aws_region
+    CostCenter  = var.aws_cost_center
+    Owner       = var.aws_owner_email
+  }
+  
+  # AWS resource naming convention
+  aws_name_prefix = "${var.environment}-kong-konnect"
+}
+
+# ============================================================================
+# AWS SECRETS MANAGER INTEGRATION (Enhanced)
+# ============================================================================
+
+# Primary region vault
+resource "konnect_gateway_vault" "aws_secrets_manager_primary" {
+  count            = var.enable_aws_vault ? 1 : 0
+  name             = "aws-secrets-manager-${var.aws_region}"
+  description      = "AWS Secrets Manager integration for ${var.aws_region}"
+  prefix           = "aws-sm-${var.aws_region}"
+  control_plane_id = local.control_plane_id
+
+  config = jsonencode({
+    region                = var.aws_region
+    endpoint_url          = "https://secretsmanager.${var.aws_region}.amazonaws.com"
+    ttl                   = 3600
+    neg_ttl               = 60
+    resurrect_ttl         = 60
+  })
+
+  tags = ["aws", "secrets-manager", "primary", var.aws_region]
+}
+
+# Secondary region vault (for multi-region)
+resource "konnect_gateway_vault" "aws_secrets_manager_secondary" {
+  count            = var.enable_aws_vault && var.enable_aws_multi_region ? 1 : 0
+  name             = "aws-secrets-manager-${var.aws_secondary_region}"
+  description      = "AWS Secrets Manager integration for ${var.aws_secondary_region} (DR)"
+  prefix           = "aws-sm-${var.aws_secondary_region}"
+  control_plane_id = local.control_plane_id
+
+  config = jsonencode({
+    region                = var.aws_secondary_region
+    endpoint_url          = "https://secretsmanager.${var.aws_secondary_region}.amazonaws.com"
+    ttl                   = 3600
+    neg_ttl               = 60
+    resurrect_ttl         = 60
+  })
+
+  tags = ["aws", "secrets-manager", "secondary", "dr", var.aws_secondary_region]
+}
+
+# ============================================================================
+# AWS CLOUDWATCH INTEGRATION (for logging and monitoring)
+# ============================================================================
+
+# CloudWatch Log Plugin
+resource "konnect_gateway_plugin_http_log" "cloudwatch_logs" {
+  count   = var.enable_aws_cloudwatch ? 1 : 0
+  enabled = true
+
+  config = {
+    http_endpoint = "https://logs.${var.aws_region}.amazonaws.com"
+    method        = "POST"
+    timeout       = 10000
+    keepalive     = 60000
+    content_type  = "application/json"
+    flush_timeout = 2
+    retry_count   = 10
+    custom_fields_by_lua = {
+      aws_region    = "return '${var.aws_region}'"
+      environment   = "return '${var.environment}'"
+      control_plane = "return '${var.control_plane_name}'"
+    }
+    headers = {
+      "X-AWS-Region"    = var.aws_region
+      "X-Environment"   = var.environment
+      "X-Control-Plane" = var.control_plane_name
+    }
+  }
+
+  service = {
+    id = konnect_gateway_service.httpbin_api.id
+  }
+
+  control_plane_id = local.control_plane_id
+}
+
+# ============================================================================
+# AWS LAMBDA INTEGRATION
+# ============================================================================
+
+# Lambda plugin for serverless functions
+resource "konnect_gateway_plugin_aws_lambda" "lambda_integration" {
+  count   = var.enable_aws_lambda ? 1 : 0
+  enabled = true
+
+  config = {
+    aws_region           = var.aws_region
+    function_name        = var.aws_lambda_function_name
+    invocation_type      = var.aws_lambda_invocation_type
+    log_type             = "Tail"
+    timeout              = 60000
+    keepalive            = 60000
+    skip_large_bodies    = true
+    base64_encode_body   = false
+    aws_assume_role_arn  = var.aws_lambda_role_arn
+    aws_role_session_name = "kong-gateway-session"
+  }
+
+  route = {
+    id = var.aws_lambda_route_id
+  }
+
+  control_plane_id = local.control_plane_id
+}
+
+# ============================================================================
+# AWS VPC CONNECTIVITY
+# ============================================================================
+
+# VPC Peering Configuration (via Transit Gateway)
+resource "konnect_cloud_gateway_transit_gateway" "aws_tgw" {
+  count                  = var.enable_aws_transit_gateway ? 1 : 0
+  control_plane_id       = local.control_plane_id
+  dataplane_group_id     = var.dataplane_group_id
+  
+  aws_ram_share_arn      = var.aws_ram_share_arn
+  aws_transit_gateway_id = var.aws_transit_gateway_id
+  cidrs                  = var.aws_vpc_cidrs
+}
+
+# Private connectivity to AWS services
+resource "konnect_cloud_gateway_network_configuration" "aws_network" {
+  count                         = var.enable_cloud_gateway && var.aws_deployment ? 1 : 0
+  control_plane_id              = local.control_plane_id
+  dataplane_group_id            = var.dataplane_group_id
+  
+  # AWS-specific network settings
+  egress_ip_addresses           = var.aws_egress_ips
+  firewall_allowed_ip_addresses = concat(
+    var.aws_vpc_cidrs,
+    var.additional_allowed_ips
+  )
+}
+
+# AWS Provider Account for cross-account access
+resource "konnect_cloud_gateway_provider_account" "aws_account" {
+  count            = var.enable_aws_provider_account ? 1 : 0
+  control_plane_id = local.control_plane_id
+  
+  configuration = {
+    kind = "aws"
+    aws = {
+      account_id          = var.aws_account_id
+      arn                 = var.aws_iam_role_arn
+      external_id         = var.aws_external_id
+      konnect_account_id  = var.konnect_account_id
+    }
+  }
+}
+
+# ============================================================================
+# AWS ROUTE 53 INTEGRATION
+# ============================================================================
+
+# Custom domain with Route 53
+resource "konnect_cloud_gateway_custom_domain" "aws_route53_domain" {
+  count                  = var.enable_aws_custom_domain ? 1 : 0
+  control_plane_id       = local.control_plane_id
+  dataplane_group_id     = var.dataplane_group_id
+  domain                 = var.aws_custom_domain
+}
+
+# ============================================================================
+# AWS ACM CERTIFICATE INTEGRATION
+# ============================================================================
+
+# Certificate from AWS Certificate Manager
+resource "konnect_gateway_certificate" "aws_acm_cert" {
+  count            = var.enable_aws_acm_cert ? 1 : 0
+  certificate      = var.aws_acm_certificate
+  private_key      = var.aws_acm_private_key
+  control_plane_id = local.control_plane_id
+
+  tags = concat(
+    ["aws", "acm", "tls"],
+    [for k, v in local.aws_tags : "${k}:${v}"]
+  )
+}
+
+# SNI for AWS ALB/NLB integration
+resource "konnect_gateway_sni" "aws_alb_domain" {
+  count            = var.enable_aws_acm_cert ? 1 : 0
+  name             = var.aws_custom_domain
+  control_plane_id = local.control_plane_id
+
+  certificate = {
+    id = konnect_gateway_certificate.aws_acm_cert[0].id
+  }
+
+  tags = ["aws", "alb", "sni"]
+}
+
+# ============================================================================
+# AWS ELASTICACHE INTEGRATION (for rate limiting and caching)
+# ============================================================================
+
+# Redis backend for advanced rate limiting (using ElastiCache)
+resource "konnect_gateway_plugin_rate_limiting_advanced" "aws_redis_rate_limit" {
+  count   = var.enable_aws_elasticache ? 1 : 0
+  enabled = true
+  
+  config = {
+    limit       = [1000]
+    window_size = [60]
+    window_type = "sliding"
+    identifier  = "consumer"
+    strategy    = "redis"
+    redis = {
+      host               = var.aws_elasticache_endpoint
+      port               = var.aws_elasticache_port
+      password           = var.aws_elasticache_password
+      database           = 0
+      timeout            = 2000
+      keepalive_pool_size = 30
+      keepalive_backlog  = 100
+      ssl                = var.aws_elasticache_ssl
+      ssl_verify         = true
+      server_name        = var.aws_elasticache_endpoint
+    }
+  }
+
+  service = {
+    id = konnect_gateway_service.httpbin_api.id
+  }
+
+  control_plane_id = local.control_plane_id
+}
+
+# ============================================================================
+# AWS RDS INTEGRATION (for OAuth2 token storage)
+# ============================================================================
+
+# OAuth2 with RDS PostgreSQL backend
+resource "konnect_gateway_plugin_oauth2" "aws_rds_oauth" {
+  count   = var.enable_aws_rds_oauth ? 1 : 0
+  enabled = true
+
+  config = {
+    scopes                    = var.oauth2_scopes
+    mandatory_scope           = true
+    enable_authorization_code = true
+    enable_client_credentials = true
+    enable_password_grant     = true
+    token_expiration          = 7200
+    refresh_token_ttl         = 1209600
+    
+    # PostgreSQL connection (AWS RDS)
+    postgres_host     = var.aws_rds_endpoint
+    postgres_port     = var.aws_rds_port
+    postgres_user     = var.aws_rds_username
+    postgres_password = var.aws_rds_password
+    postgres_database = var.aws_rds_database
+    postgres_ssl      = true
+  }
+
+  service = {
+    id = konnect_gateway_service.httpbin_api.id
+  }
+
+  control_plane_id = local.control_plane_id
+}
+
+# ============================================================================
+# AWS S3 INTEGRATION (for file uploads)
+# ============================================================================
+
+# Note: S3 integration typically done via custom plugins or Lambda
+# This is a placeholder for documentation
+
+# ============================================================================
+# AWS IAM AUTHENTICATION
+# ============================================================================
+
+# AWS SigV4 authentication plugin (for AWS API Gateway compatibility)
+resource "konnect_gateway_plugin_aws_lambda" "sigv4_auth" {
+  count   = var.enable_aws_sigv4_auth ? 1 : 0
+  enabled = true
+
+  config = {
+    aws_region    = var.aws_region
+    function_name = var.aws_auth_lambda_function
+    aws_assume_role_arn = var.aws_auth_role_arn
+  }
+
+  service = {
+    id = konnect_gateway_service.httpbin_api.id
+  }
+
+  control_plane_id = local.control_plane_id
+}
+
+# ============================================================================
+# AWS COGNITO INTEGRATION
+# ============================================================================
+
+# JWT plugin configured for AWS Cognito
+resource "konnect_gateway_plugin_jwt" "aws_cognito" {
+  count   = var.enable_aws_cognito ? 1 : 0
+  enabled = true
+
+  config = {
+    uri_param_names  = ["token"]
+    key_claim_name   = "iss"
+    secret_is_base64 = false
+    claims_to_verify = ["exp", "iss"]
+    header_names     = ["Authorization"]
+    
+    # Cognito-specific settings
+    run_on_preflight = true
+    maximum_expiration = 86400
+    
+    # Cognito issuer URL
+    # Format: https://cognito-idp.{region}.amazonaws.com/{userPoolId}
+  }
+
+  service = {
+    id = konnect_gateway_service.httpbin_api.id
+  }
+
+  control_plane_id = local.control_plane_id
+}
+
+# ============================================================================
+# AWS SYSTEMS MANAGER PARAMETER STORE
+# ============================================================================
+
+# Environment vault for SSM Parameter Store
+resource "konnect_gateway_vault" "aws_ssm" {
+  count            = var.enable_aws_ssm ? 1 : 0
+  name             = "aws-ssm-parameter-store"
+  description      = "AWS Systems Manager Parameter Store integration"
+  prefix           = "aws-ssm"
+  control_plane_id = local.control_plane_id
+
+  config = jsonencode({
+    region = var.aws_region
+  })
+
+  tags = ["aws", "ssm", "parameter-store"]
+}
+
+# ============================================================================
+# AWS COST OPTIMIZATION
+# ============================================================================
+
+locals {
+  # AWS cost allocation tags for Kong resources
+  aws_cost_tags = merge(
+    local.aws_tags,
+    {
+      Service     = "kong-gateway"
+      Application = "api-platform"
+      BillingCode = var.aws_billing_code
+    }
+  )
+}
+
+# ============================================================================
+# AWS MONITORING & OBSERVABILITY
+# ============================================================================
+
+# Datadog for AWS CloudWatch metrics
+resource "konnect_gateway_plugin_datadog" "aws_cloudwatch" {
+  count   = var.enable_aws_datadog ? 1 : 0
+  enabled = true
+
+  config = {
+    host = var.aws_datadog_agent_host
+    port = 8125
+    metrics = [
+      {
+        name        = "request_count"
+        stat_type   = "counter"
+        sample_rate = 1
+        tags        = ["aws_region:${var.aws_region}", "environment:${var.environment}"]
+      },
+      {
+        name        = "latency"
+        stat_type   = "timer"
+        sample_rate = 1
+        tags        = ["aws_region:${var.aws_region}", "environment:${var.environment}"]
+      },
+      {
+        name        = "request_size"
+        stat_type   = "histogram"
+        sample_rate = 0.1
+        tags        = ["aws_region:${var.aws_region}"]
+      }
+    ]
+    prefix = "kong.aws"
+  }
+
+  service = {
+    id = konnect_gateway_service.httpbin_api.id
+  }
+
+  control_plane_id = local.control_plane_id
+}
